@@ -34,8 +34,14 @@ def get_item(item_id: int) -> Item:
 
 # ACTIVATE
 # ====
-# Activate test API Command:
+# ACTIVATE test API Command:
 # python -m uvicorn main:app --reload
+
+# RUN
+# ====
+# RUN the web so that others can access it:
+# source venv/bin/activate  # activate virtual environment
+# uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 # POST
 # ====
