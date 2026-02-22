@@ -10,7 +10,7 @@ git push origin main
 [NGINX CONFIGURATION]
 sudo apt-get update
 sudo apt-get install -y python3-pip python3-venv jinja2 nginx
-git clone https://github.com/FakeEstateDeveloper/project-name.git
+git clone https://github.com/github-username/project-name.git
 cd project-name
 python3 -m venv venv
 source venv/bin/activate
@@ -25,22 +25,28 @@ server {
     }
 }
 sudo service nginx restart
-
 [ACTIVATE WEBSITE ON EC2 INSTANCE]
 source venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8000
 
 [BUILD DOCKER]
-Navigate to your project folder first
-    cd ~/your-repo
-One-liner to build & run Docker container
-    docker build -t fastapi-todo . && \
-    docker run -d \
-    --name fastapi-todo-container \
-    -p 80:8000 \
-    -v ~/todo_data:/app \
-    --restart unless-stopped \
-    fastapi-todo
-Stop or start
-    docker stop fastapi-todo-container
-    docker start fastapi-todo-container
+EC2-Setup
+    ssh -i "your-key.pem" ubuntu@<EC2_PUBLIC_IP>
+    sudo apt update
+    sudo apt install -y docker.io
+    sudo systemctl enable --now docker
+    mkdir -p ~/todolist_data
+    cd ~/todolist
+    sudo docker build -t fastapi-todo .
+    sudo docker ps -a
+    sudo docker stop fastapi-todo
+    sudo docker rm fastapi-todo
+    sudo docker run -d -p 80:80 --name fastapi-todo -v ~/todolist_data:/app --restart unless-stopped fastapi-todo
+    Navigate to http://<EC2_PUBLIC_IP>/index
+Rebuild-Code
+    cd ~/todolist
+    git pull origin main
+    sudo docker build -t fastapi-todo .
+    sudo docker stop fastapi-todo
+    sudo docker rm fastapi-todo
+    sudo docker run -d -p 80:80 --name fastapi-todo -v ~/todolist_data:/app --restart unless-stopped fastapi-todo
