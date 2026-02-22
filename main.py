@@ -1,19 +1,20 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import json
 from pathlib import Path
+import uuid
 
 DATA_FILE = Path("items.json")
 
 # Load existing items
 if DATA_FILE.exists():
-    with open(DATA_FILE) as f:
-        items = json.load(f)
+    with open(DATA_FILE) as file:
+        items = json.load(file)  # Now this will be a dict {user_id: [items]}
 else:
-    items = []
+    items = {}
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -21,36 +22,62 @@ templates = Jinja2Templates(directory="templates")
 
 # Item Model
 class Item(BaseModel):
-    ToDo: str                                               # No default means required
+    ToDo: str
 
-# Index Page
-@app.get("/index", response_class=HTMLResponse)
-def home(request: Request):
-    return templates.TemplateResponse(
-        "index.html", {
-            "request": request,
-            "items": items                                  # Sends items to html
-        }
-    )
-
-# Add item to list
-# '/item'
-@app.post("/item")
-def create_item(item: Item):
-    items.append(item.dict())
+# Helper to save to file
+def save_items():
     with open(DATA_FILE, "w") as file:
         json.dump(items, file)
 
-# Shows all items
-# '/items'
-@app.get("/items")
-def list_items():
-    return items
+# Index Page
+@app.get("/index", response_class=HTMLResponse)
+def home(request: Request, response: Response):
+    # Get or create user_id cookie
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        user_id = str(uuid.uuid4())
+        response.set_cookie(key="user_id", value=user_id)
+    
+    user_items = items.get(user_id, [])
+    
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "items": user_items
+        }
+    )
 
-# Get item from list
-# '/items/item_id'
+# Add item
+@app.post("/item")
+def create_item(item: Item, request: Request, response: Response):
+    user_id = request.cookies.get("user_id")
+    if not user_id:
+        user_id = str(uuid.uuid4())
+        response.set_cookie(key="user_id", value=user_id)
+    
+    user_items = items.setdefault(user_id, [])
+    user_items.append(item.dict())
+    
+    save_items()
+    return {"success": True, "item": item.dict()}
+
+# List items for this user
+@app.get("/items")
+def list_items(request: Request):
+    user_id = request.cookies.get("user_id")
+    if not user_id or user_id not in items:
+        return []
+    return items[user_id]
+
+# Get a single item for this user
 @app.get("/items/{item_id}", response_model=Item)
-def get_item(item_id: int) -> Item:
-    if item_id < len(items):
-        return items[item_id]
+def get_item(item_id: int, request: Request):
+    user_id = request.cookies.get("user_id")
+    if not user_id or user_id not in items:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    user_items = items[user_id]
+    if item_id < len(user_items):
+        return user_items[item_id]
     raise HTTPException(status_code=404, detail=f"Item {item_id} was not found")
